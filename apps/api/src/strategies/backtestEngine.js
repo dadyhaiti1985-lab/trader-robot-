@@ -58,7 +58,6 @@ export function runBacktest(candles, options = {}) {
 	for (let i = 20; i < candles.length - 1; i++) {
 		const slice = candles.slice(i - 20, i + 1);
 		const closes = slice.map((c) => Number(c.close));
-		if (closes.length === 0) continue;
 		const sma = closes.reduce((s, v) => s + v, 0) / closes.length;
 		const price = closes[closes.length - 1];
 		if (!(price > 0)) continue;

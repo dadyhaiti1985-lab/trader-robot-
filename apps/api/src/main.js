@@ -117,8 +117,15 @@ app.use(cors({
 
 app.use(morgan('combined'));
 app.use((req, res, next) => {
-	const requestId = req.headers['x-correlation-id'] || crypto.randomUUID();
-	req.correlationId = String(requestId);
+	const clientRequestId = Array.isArray(req.headers['x-correlation-id'])
+		? req.headers['x-correlation-id'][0]
+		: req.headers['x-correlation-id'];
+	const safeRequestId = typeof clientRequestId === 'string'
+		&& clientRequestId.length <= 128
+		&& /^[A-Za-z0-9._-]+$/.test(clientRequestId)
+		? clientRequestId
+		: crypto.randomUUID();
+	req.correlationId = String(safeRequestId);
 	res.setHeader('X-Correlation-Id', req.correlationId);
 	const startedAt = Date.now();
 	res.on('finish', () => {
