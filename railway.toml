@@ -1,9 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
-
-[phases.setup]
-nixPkgs = ["nodejs-22_x"]
+buildCommand = "npm run build --prefix apps/web"
 
 [deploy]
 startCommand = "npm start"
