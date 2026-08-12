@@ -37,7 +37,7 @@ async function checkRedis() {
 		return { status: 'not_configured' };
 	}
 
-	return { status: 'configured', note: 'Redis ping not implemented' };
+	return { status: 'not_checked' };
 }
 
 export default async (_req, res) => {

@@ -70,9 +70,6 @@ router.get('/price', validateSymbolQuery, async (req, res) => {
   if (!symbol) {
     return res.status(400).json({ error: 'symbol query parameter is required' });
   }
-  if (typeof symbol !== 'string' || symbol.length > 20) {
-    return res.status(400).json({ error: 'symbol must be a string with max length 20' });
-  }
 
   // Serve fresh cached price without hitting rate limit or Coinbase
   const cached = priceCache.get(symbol);

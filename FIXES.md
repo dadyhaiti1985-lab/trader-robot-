@@ -2,7 +2,7 @@
 
 ## Critical fixes
 
-1. Added robust input validation and divide-by-zero guards in `/home/runner/work/trader-robot-/trader-robot-/apps/api/src/strategies/backtestEngine.js`.
+1. Added robust input validation and divide-by-zero guards in `apps/api/src/strategies/backtestEngine.js`.
 2. Added startup-time encryption key validation via `validateCoinbaseFillsConfig()` and wired it into startup checks.
 3. Added TTL cleanup for in-memory signal state (5-minute expiry for inactive states).
 4. Replaced hardcoded PocketBase URL usage in middleware with `POCKETBASE_URL`.
@@ -17,14 +17,14 @@
 ## Security and code quality improvements
 
 9. Restricted sensitive startup configuration logging to non-production environments.
-10. Added `/home/runner/work/trader-robot-/trader-robot-/apps/api/src/constants/rate-limits.js` for timeout/rate-limit/cache constants.
+10. Added `apps/api/src/constants/rate-limits.js` for timeout/rate-limit/cache constants.
 11. Added Coinbase call circuit-breaker protections and improved error handling in the live position guard.
 12. Added request validation middleware for payload size/depth and symbol format checks; added total upload-size enforcement.
 
 ## New features
 
 13. Added `GET /health/detailed` to report PocketBase, Coinbase, Supabase, and Redis status.
-14. Added `/home/runner/work/trader-robot-/trader-robot-/apps/api/src/utils/startup-checks.js` for startup validation and connectivity probes.
+14. Added `apps/api/src/utils/startup-checks.js` for startup validation and connectivity probes.
 15. Added correlation ID + latency request logging middleware in `main.js`.
 
 ## Compatibility notes

@@ -43,7 +43,7 @@ export function validateSymbolQuery(req, res, next) {
 		return next();
 	}
 
-	if (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > MAX_SYMBOL_LENGTH || !/^[A-Za-z0-9/-]+$/.test(symbol)) {
+	if (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > MAX_SYMBOL_LENGTH || !/^[-A-Za-z0-9/]+$/.test(symbol)) {
 		return res.status(400).json({ error: `symbol must be an alphanumeric market pair (max ${MAX_SYMBOL_LENGTH} chars)` });
 	}
 
