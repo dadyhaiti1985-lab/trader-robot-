@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "wget https://github.com/pocketbase/pocketbase/releases/download/v0.22.13/pocketbase_0.22.13_linux_amd64.zip && unzip pocketbase_0.22.13_linux_amd64.zip && chmod +x pocketbase"
+buildCommand = "curl -L -o pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.22.13/pocketbase_0.22.13_linux_amd64.zip && python3 -m zipfile -e pocketbase.zip . && chmod +x pocketbase"
 
 [deploy]
 startCommand = "./pocketbase serve --http=0.0.0.0:$PORT --dir=/data --migrationsDir=./pb_migrations --hooksDir=./pb_hooks --hooksWatch=false"
