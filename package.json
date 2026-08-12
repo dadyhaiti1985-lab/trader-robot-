@@ -7,7 +7,7 @@
   },
   "scripts": {
     "setup": "npm install",
-    "build": "echo 'No build step required'",
+    "build": "echo No build step required",
     "start": "node index.js"
   }
 }
