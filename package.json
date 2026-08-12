@@ -2,6 +2,9 @@
   "name": "monorepo",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "setup": "npm install",
     "dev": "concurrently --kill-others --raw \"npm run dev --prefix apps/web\" \"npm run dev --prefix apps/api\" \"npm run dev --prefix apps/pocketbase\"",
@@ -15,11 +18,4 @@
   "workspaces": [
     "apps/*"
   ]
-}{
-  "name": "trader-robot",
-  "version": "1.0.0",
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "scripts": { ... }
 }
