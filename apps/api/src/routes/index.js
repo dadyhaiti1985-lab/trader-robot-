@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import healthCheck from './health-check.js';
+import healthDetailed from './health-detailed.js';
 import systemHealth from './system-health.js';
 import supabaseHealth from './supabase-health.js';
 import botRouter from './bot.js';
@@ -27,6 +28,7 @@ export default function routes() {
 
   // Health check endpoint
   router.get('/health', healthCheck);
+  router.get('/health/detailed', healthDetailed);
   router.get('/system-health', systemHealth);
   router.get('/supabase-health', supabaseHealth);
 

@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import Pocketbase from 'pocketbase';
 
-const POCKETBASE_URL = 'http://localhost:8090';
+const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090';
 
 export function getBearerToken(req) {
 	return req.headers.authorization?.split(' ')?.[1];

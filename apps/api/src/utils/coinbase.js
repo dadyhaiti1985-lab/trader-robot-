@@ -2,6 +2,7 @@ import 'dotenv/config';
 import axios from 'axios';
 import crypto from 'crypto';
 import logger from './logger.js';
+import { EXTERNAL_REQUEST_TIMEOUT_MS } from '../constants/rate-limits.js';
 
 const BASE_URL = 'https://api.coinbase.com/api/v1';
 const API_KEY = process.env.COINBASE_API_KEY;
@@ -99,6 +100,7 @@ async function makeRequest(method, path, data = null) {
       url,
       headers,
       data: data || undefined,
+      timeout: EXTERNAL_REQUEST_TIMEOUT_MS,
     });
     return response.data;
   } catch (error) {
