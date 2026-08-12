@@ -120,16 +120,17 @@ app.use((req, res, next) => {
 	const clientRequestId = Array.isArray(req.headers['x-correlation-id'])
 		? req.headers['x-correlation-id'][0]
 		: req.headers['x-correlation-id'];
-	const safeRequestId = typeof clientRequestId === 'string'
+	const safeClientRequestId = typeof clientRequestId === 'string'
 		&& clientRequestId.length <= 128
 		&& /^[A-Za-z0-9._-]+$/.test(clientRequestId)
 		? clientRequestId
-		: crypto.randomUUID();
-	req.correlationId = String(safeRequestId);
+		: null;
+	req.correlationId = crypto.randomUUID();
+	req.clientCorrelationId = safeClientRequestId;
 	res.setHeader('X-Correlation-Id', req.correlationId);
 	const startedAt = Date.now();
 	res.on('finish', () => {
-		logger.info(`[request] ${req.correlationId} ${req.method} ${req.originalUrl} status=${res.statusCode} latencyMs=${Date.now() - startedAt}`);
+		logger.info(`[request] ${req.correlationId} ${req.method} ${req.originalUrl} status=${res.statusCode} latencyMs=${Date.now() - startedAt}${safeClientRequestId ? ` clientId=${safeClientRequestId}` : ''}`);
 	});
 	next();
 });

@@ -43,6 +43,7 @@ export function requestTimeoutMiddleware(timeoutMs = EXTERNAL_REQUEST_TIMEOUT_MS
 			}
 			logger.warn(`[timeout] ${req.method} ${req.originalUrl} exceeded ${timeoutMs}ms`);
 			res.status(504).json({ error: 'Request timed out' });
+			req.socket?.destroy();
 		});
 		next();
 	};
