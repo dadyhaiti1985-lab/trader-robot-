@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/svg+xml" href="/vite.svg" />
+		<meta name="generator" content="Hostinger Horizons" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title></title>
+		<!-- Inline cookie cleanup: run synchronously before any scripts to prevent 431 errors -->
+		<script>
+			(function(){
+				try {
+					// Delete all cookies that are not essential (pocketbase auth)
+					var pairs = document.cookie.split(';');
+					var essential = ['pb_', 'pocketbase'];
+					pairs.forEach(function(pair){
+						var name = pair.split('=')[0].trim();
+						var lower = name.toLowerCase();
+						if (!essential.some(function(e){ return lower.indexOf(e) === 0; })) {
+							var exp = '; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+							document.cookie = name + '=' + exp;
+							document.cookie = name + '=' + exp + '; domain=' + location.hostname;
+						}
+					});
+					// Trim PocketBase auth token in localStorage to minimal fields
+					var raw = localStorage.getItem('pocketbase_auth');
+					if (raw) {
+						try {
+							var p = JSON.parse(raw);
+							if (p && p.model) {
+								p.model = { id: p.model.id, email: p.model.email, verified: p.model.verified, name: p.model.name };
+								localStorage.setItem('pocketbase_auth', JSON.stringify(p));
+							}
+						} catch(e2) {}
+					}
+					// Remove oversized localStorage entries (>2KB) except auth
+					try {
+						var lsKeep = ['pocketbase_auth'];
+						var lsStale = ['temp_','cache_','debug_','tmp_','h_','_ga','_gid','amp_','ajs_'];
+						for (var i = localStorage.length - 1; i >= 0; i--) {
+							var k = localStorage.key(i);
+							if (!k || lsKeep.indexOf(k) !== -1) continue;
+							if (lsStale.some(function(p){ return k.indexOf(p) === 0; })) { localStorage.removeItem(k); continue; }
+							var v = localStorage.getItem(k);
+							if (v && v.length > 2048) localStorage.removeItem(k);
+						}
+					} catch(e3) {}
+					// Remove oversized sessionStorage entries (>2KB)
+					try {
+						for (var j = sessionStorage.length - 1; j >= 0; j--) {
+							var sk = sessionStorage.key(j);
+							if (!sk) continue;
+							var sv = sessionStorage.getItem(sk);
+							if (sv && sv.length > 2048) sessionStorage.removeItem(sk);
+						}
+					} catch(e4) {}
+				} catch(e) {}
+			})();
+		</script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.jsx"></script>
+	</body>
+</html>
