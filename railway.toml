@@ -2,6 +2,9 @@
 builder = "NIXPACKS"
 buildCommand = "npm install && npm run build"
 
+[phases.setup]
+nixPkgs = ["nodejs-22_x"]
+
 [deploy]
 startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
