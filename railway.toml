@@ -1,8 +1,8 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "tar -xzf app.tar.gz && npm install"
+buildCommand = "wget https://github.com/pocketbase/pocketbase/releases/download/v0.22.13/pocketbase_0.22.13_linux_amd64.zip && unzip pocketbase_0.22.13_linux_amd64.zip && chmod +x pocketbase"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "./pocketbase serve --http=0.0.0.0:$PORT --dir=/data --migrationsDir=./pb_migrations --hooksDir=./pb_hooks --hooksWatch=false"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
