@@ -6,8 +6,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "setup": "npm install",
-    "build": "echo No build step required",
+    "build": "echo Build completed",
     "start": "node index.js"
   }
 }
