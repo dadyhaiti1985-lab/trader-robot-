@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
+buildCommand = "tar -xzf app.tar.gz && npm install"
 
 [deploy]
 startCommand = "npm start"
