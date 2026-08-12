@@ -1,0 +1,2 @@
+[console_scripts]
+trader-robot = trader_robot.main:main
