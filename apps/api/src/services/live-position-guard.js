@@ -8,11 +8,33 @@ const LOOP_INTERVAL_MS = 5_000;
 const HYDRATE_INTERVAL_MS = 30_000;
 const BREAK_EVEN_REASON = 'Break-even triggered';
 const TRAILING_REASON = 'Trailing stop updated';
+const COINBASE_CIRCUIT_BREAKER_THRESHOLD = 3;
+const COINBASE_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 
 const registry = new Map();
 
 let loopTimer = null;
 let hydrateAt = 0;
+let coinbaseFailureCount = 0;
+let coinbaseCircuitOpenUntil = 0;
+
+function isCoinbaseCircuitOpen() {
+	return coinbaseCircuitOpenUntil > Date.now();
+}
+
+function recordCoinbaseFailure() {
+	coinbaseFailureCount += 1;
+	if (coinbaseFailureCount >= COINBASE_CIRCUIT_BREAKER_THRESHOLD) {
+		coinbaseCircuitOpenUntil = Date.now() + COINBASE_CIRCUIT_BREAKER_COOLDOWN_MS;
+		logger.warn(`[PositionGuard] Coinbase circuit opened for ${COINBASE_CIRCUIT_BREAKER_COOLDOWN_MS}ms after ${coinbaseFailureCount} failures`);
+		coinbaseFailureCount = 0;
+	}
+}
+
+function recordCoinbaseSuccess() {
+	coinbaseFailureCount = 0;
+	coinbaseCircuitOpenUntil = 0;
+}
 
 function getEncryptionKey() {
 	const secret = process.env.ORACLE_CREDENTIALS_ENCRYPTION_KEY;
@@ -124,20 +146,30 @@ export function evaluateProtectionStep(position, currentPrice) {
 }
 
 async function fetchSpotPrice(pair) {
+	if (isCoinbaseCircuitOpen()) {
+		throw new Error('Coinbase circuit breaker is open');
+	}
+
 	const symbol = String(pair || 'BTC-USD').replace('/', '-').toUpperCase();
-	const response = await fetch(`https://api.coinbase.com/v2/prices/${symbol}/spot`, {
-		method: 'GET',
-		signal: AbortSignal.timeout(5_000),
-	});
-	if (!response.ok) {
-		throw new Error(`spot price request failed: ${response.status}`);
+	try {
+		const response = await fetch(`https://api.coinbase.com/v2/prices/${symbol}/spot`, {
+			method: 'GET',
+			signal: AbortSignal.timeout(5_000),
+		});
+		if (!response.ok) {
+			throw new Error(`spot price request failed: ${response.status}`);
+		}
+		const payload = await response.json();
+		const amount = Number(payload?.data?.amount || 0);
+		if (!(amount > 0)) {
+			throw new Error(`invalid spot price for ${symbol}`);
+		}
+		recordCoinbaseSuccess();
+		return amount;
+	} catch (error) {
+		recordCoinbaseFailure();
+		throw error;
 	}
-	const payload = await response.json();
-	const amount = Number(payload?.data?.amount || 0);
-	if (!(amount > 0)) {
-		throw new Error(`invalid spot price for ${symbol}`);
-	}
-	return amount;
 }
 
 async function loadUserCredentials(userId) {
@@ -154,6 +186,10 @@ async function loadUserCredentials(userId) {
 }
 
 async function tryCloseOnCoinbase(position, exitPrice) {
+	if (isCoinbaseCircuitOpen()) {
+		return { closedLive: false, reason: 'Coinbase circuit breaker is open' };
+	}
+
 	const credentials = await loadUserCredentials(position.userId);
 	if (!credentials) {
 		return { closedLive: false, reason: 'No user Coinbase credentials for live close' };
@@ -181,10 +217,13 @@ async function tryCloseOnCoinbase(position, exitPrice) {
 		});
 		const payload = await response.json().catch(() => ({}));
 		if (!response.ok) {
+			recordCoinbaseFailure();
 			return { closedLive: false, reason: `Coinbase close rejected (${response.status})`, payload };
 		}
+		recordCoinbaseSuccess();
 		return { closedLive: true, exitOrderId: payload?.order_id || payload?.success_response?.order_id || null, exitPrice };
 	} catch (error) {
+		recordCoinbaseFailure();
 		return { closedLive: false, reason: error?.message || 'Coinbase close failed' };
 	}
 }

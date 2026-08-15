@@ -3,29 +3,44 @@ import logger from '../utils/logger.js';
 import * as coinbase from '../utils/coinbase.js';
 import authMiddleware from '../middleware/auth.js';
 import { getCoinbaseFillHistory } from '../services/coinbase-fills.js';
+import { validateSymbolQuery } from '../middleware/request-validation.js';
+import {
+  PRICE_CACHE_TTL_MS,
+  COINBASE_RATE_LIMIT_MAX_REQUESTS,
+  COINBASE_RATE_LIMIT_WINDOW_MS,
+  COINBASE_RATE_LIMIT_IP_TTL_MS,
+} from '../constants/rate-limits.js';
 
 const router = express.Router();
 
 // --- In-memory price cache (5s TTL) ---
-const PRICE_CACHE_TTL = 5000;
 const priceCache = new Map(); // symbol -> { data, timestamp }
 
 // --- Per-IP rate limiter: max 10 requests / 10s ---
-const RATE_LIMIT_MAX = 10;
-const RATE_LIMIT_WINDOW = 10000;
-const ipHits = new Map(); // ip -> [timestamps]
+const ipHits = new Map(); // ip -> { hits: number[], lastSeenAt: number }
+
+function cleanupExpiredIpHits(now) {
+  for (const [ip, entry] of ipHits.entries()) {
+    if (now - entry.lastSeenAt > COINBASE_RATE_LIMIT_IP_TTL_MS) {
+      ipHits.delete(ip);
+    }
+  }
+}
 
 function isRateLimited(req, res) {
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
   const now = Date.now();
-  const hits = (ipHits.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW);
-  if (hits.length >= RATE_LIMIT_MAX) {
-    const retryAfter = Math.ceil((RATE_LIMIT_WINDOW - (now - hits[0])) / 1000);
+  cleanupExpiredIpHits(now);
+
+  const existing = ipHits.get(ip);
+  const hits = (existing?.hits || []).filter((t) => now - t < COINBASE_RATE_LIMIT_WINDOW_MS);
+  if (hits.length >= COINBASE_RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((COINBASE_RATE_LIMIT_WINDOW_MS - (now - hits[0])) / 1000);
     res.set('Retry-After', String(Math.max(1, retryAfter)));
     return true;
   }
   hits.push(now);
-  ipHits.set(ip, hits);
+  ipHits.set(ip, { hits, lastSeenAt: now });
   return false;
 }
 
@@ -47,7 +62,7 @@ function enqueue(task) {
  * Query params: symbol (e.g., 'BTC-USD')
  * Returns: { symbol, price, change24h, high24h, low24h, volume24h }
  */
-router.get('/price', async (req, res) => {
+router.get('/price', validateSymbolQuery, async (req, res) => {
   if (res.headersSent) return;
 
   const { symbol } = req.query;
@@ -58,7 +73,7 @@ router.get('/price', async (req, res) => {
 
   // Serve fresh cached price without hitting rate limit or Coinbase
   const cached = priceCache.get(symbol);
-  if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL_MS) {
     return res.json({ ...cached.data, cached: true });
   }
 

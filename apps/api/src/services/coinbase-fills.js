@@ -6,6 +6,15 @@ import logger from '../utils/logger.js';
 const COINBASE_FILLS_PATH = '/api/v3/brokerage/orders/historical/fills';
 const DEFAULT_LIMIT = 50;
 
+/**
+ * Ensures encrypted credential support is configured before runtime.
+ */
+export function validateCoinbaseFillsConfig() {
+	if (!process.env.ORACLE_CREDENTIALS_ENCRYPTION_KEY) {
+		throw new Error('ORACLE_CREDENTIALS_ENCRYPTION_KEY is required to decrypt stored Coinbase credentials');
+	}
+}
+
 function getEncryptionKey() {
 	const secret = process.env.ORACLE_CREDENTIALS_ENCRYPTION_KEY;
 	if (!secret) {

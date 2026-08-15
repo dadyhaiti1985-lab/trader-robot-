@@ -25,6 +25,7 @@ const detectImageMime = buffer => IMAGE_SIGNATURES.find(sig => sig.matches(buffe
 export const uploadFiles = ({
 	maxCount = 5,
 	maxSizeMB = 20,
+	maxTotalSizeMB = 20,
 	maxFieldSizeBytes = 256 * 1024,
 	allowedMimeTypes,
 	fieldName,
@@ -55,6 +56,7 @@ export const uploadFiles = ({
 
 			try {
 				validateFileContents({ files: req.files, allowedMimeTypes });
+				validateTotalUploadSize({ files: req.files, maxTotalSizeBytes: maxTotalSizeMB * 1024 * 1024 });
 				next();
 			} catch (validationError) {
 				next(validationError);
@@ -70,5 +72,15 @@ function validateFileContents({ files, allowedMimeTypes }) {
 		if (!detectedMime || !allowedMimeTypes.includes(detectedMime)) {
 			throw new Error(`Invalid file content. Only ${allowedMimeTypes.join(', ')} are allowed.`);
 		}
+	}
+}
+
+/**
+ * Enforces a strict total upload size limit per request.
+ */
+function validateTotalUploadSize({ files, maxTotalSizeBytes }) {
+	const totalBytes = (files ?? []).reduce((sum, file) => sum + Number(file?.size || 0), 0);
+	if (totalBytes > maxTotalSizeBytes) {
+		throw new Error(`Total upload size exceeds ${Math.floor(maxTotalSizeBytes / (1024 * 1024))}MB.`);
 	}
 }

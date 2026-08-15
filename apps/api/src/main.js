@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import crypto from 'node:crypto';
 
 import routes from './routes/index.js';
 import { errorMiddleware } from './middleware/error.js';
@@ -16,15 +17,20 @@ import { globalRateLimit } from './middleware/global-rate-limit.js';
 import { securityShield } from './middleware/security-shield.js';
 import logger from './utils/logger.js';
 import securityHeaders from './middleware/security-headers.js';
-import { BodyLimit } from './constants/common.js';
+import { BodyLimit, NodeEnv } from './constants/common.js';
 import { initializeBotService } from './services/botTradingService.js';
 import { startPositionGuardLoop } from './services/live-position-guard.js';
 import { runLicenseGuardStartupCheck } from './middleware/license-guard.js';
 import { scheduleIntegrityMonitor } from './utils/integrity-monitor.js';
+import { requestTimeoutMiddleware, installGlobalFetchTimeout } from './middleware/request-timeout.js';
+import { requestValidationMiddleware } from './middleware/request-validation.js';
+import runStartupChecks from './utils/startup-checks.js';
 
 await runLicenseGuardStartupCheck();
+const startupSummary = await runStartupChecks();
 
 const app = express();
+installGlobalFetchTimeout();
 
 app.set('trust proxy', true);
 app.disable('x-powered-by');
@@ -34,11 +40,13 @@ logger.info('=== Backend Server Startup ===');
 logger.info(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 logger.info(`PORT: ${process.env.PORT || 3001}`);
 logger.info(`POCKETBASE_URL: ${process.env.POCKETBASE_URL || 'http://localhost:8090'}`);
-logger.info(`COINBASE_API_KEY: ${process.env.COINBASE_API_KEY ? 'SET' : 'NOT SET'}`);
-logger.info(`COINBASE_API_SECRET: ${process.env.COINBASE_API_SECRET ? 'SET' : 'NOT SET'}`);
-logger.info(`COINBASE_API_PASSPHRASE: ${process.env.COINBASE_API_PASSPHRASE ? 'SET' : 'NOT SET'}`);
-logger.info(`PB_SUPERUSER_EMAIL: ${process.env.PB_SUPERUSER_EMAIL ? 'SET' : 'NOT SET'}`);
-logger.info(`PB_SUPERUSER_PASSWORD: ${process.env.PB_SUPERUSER_PASSWORD ? 'SET' : 'NOT SET'}`);
+if (process.env.NODE_ENV !== NodeEnv.Production) {
+	logger.info(`COINBASE_API_KEY: ${process.env.COINBASE_API_KEY ? 'SET' : 'NOT SET'}`);
+	logger.info(`COINBASE_API_SECRET: ${process.env.COINBASE_API_SECRET ? 'SET' : 'NOT SET'}`);
+	logger.info(`COINBASE_API_PASSPHRASE: ${process.env.COINBASE_API_PASSPHRASE ? 'SET' : 'NOT SET'}`);
+	logger.info(`PB_SUPERUSER_EMAIL: ${process.env.PB_SUPERUSER_EMAIL ? 'SET' : 'NOT SET'}`);
+	logger.info(`PB_SUPERUSER_PASSWORD: ${process.env.PB_SUPERUSER_PASSWORD ? 'SET' : 'NOT SET'}`);
+}
 logger.info('==============================');
 
 process.on('uncaughtException', (error) => {
@@ -108,7 +116,26 @@ app.use(cors({
 }));
 
 app.use(morgan('combined'));
+app.use((req, res, next) => {
+	const clientRequestId = Array.isArray(req.headers['x-correlation-id'])
+		? req.headers['x-correlation-id'][0]
+		: req.headers['x-correlation-id'];
+	const safeClientRequestId = typeof clientRequestId === 'string'
+		&& clientRequestId.length <= 128
+		&& /^[A-Za-z0-9._-]+$/.test(clientRequestId)
+		? clientRequestId
+		: null;
+	req.correlationId = crypto.randomUUID();
+	req.clientCorrelationId = safeClientRequestId;
+	res.setHeader('X-Correlation-Id', req.correlationId);
+	const startedAt = Date.now();
+	res.on('finish', () => {
+		logger.info(`[request] ${req.correlationId} ${req.method} ${req.originalUrl} status=${res.statusCode} latencyMs=${Date.now() - startedAt}${safeClientRequestId ? ` clientId=${safeClientRequestId}` : ''}`);
+	});
+	next();
+});
 app.use(globalRateLimit);
+app.use(requestTimeoutMiddleware());
 app.use(express.json({
 	limit: BodyLimit,
 	// Save raw body for webhook signature verification
@@ -120,6 +147,7 @@ app.use(express.urlencoded({
 	extended: true,
 	limit: BodyLimit,
 }));
+app.use(requestValidationMiddleware);
 
 app.use(securityShield);
 
@@ -136,6 +164,7 @@ const port = process.env.PORT || 3001;
 app.listen(port, () => {
 	logger.info(`🚀 API Server running on http://localhost:${port}`);
 	logger.info(`✅ CORS enabled for origins: ${allowedOrigins.join(', ')}`);
+	logger.info(`[startup] dependency summary: ${JSON.stringify(startupSummary)}`);
 
 	scheduleIntegrityMonitor({
 		files: [

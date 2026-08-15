@@ -22,6 +22,18 @@ const riskMgr = new RiskManager();
 const newsFilter = new NewsFilter();
 const analyzer = new StrategyAnalyzer();
 const oracleStrategy = new OracleTraderProStrategy(0.02, 2.0);
+const MAX_CANDLES = 5000;
+
+/**
+ * Enforces finite numeric values and optional bounds.
+ */
+function validateNumber(value, name, { min = -Infinity, max = Infinity } = {}) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < min || numericValue > max) {
+    return `${name} must be a finite number between ${min} and ${max}`;
+  }
+  return null;
+}
 
 /**
  * POST /strategy/analyze
@@ -30,8 +42,17 @@ const oracleStrategy = new OracleTraderProStrategy(0.02, 2.0);
 router.post('/analyze', async (req, res) => {
   const { candles, newsEvents = [], accountBalance = 10000, riskPercent = 1.5, riskRewardRatio = 2 } = req.body || {};
 
-  if (!candles || !Array.isArray(candles) || candles.length < 30) {
-    return res.status(422).json({ error: 'candles array with at least 30 entries required' });
+  if (!candles || !Array.isArray(candles) || candles.length < 30 || candles.length > MAX_CANDLES) {
+    return res.status(422).json({ error: `candles array with 30 to ${MAX_CANDLES} entries required` });
+  }
+
+  const numericErrors = [
+    validateNumber(accountBalance, 'accountBalance', { min: 1, max: Number.MAX_SAFE_INTEGER }),
+    validateNumber(riskPercent, 'riskPercent', { min: 0.01, max: 100 }),
+    validateNumber(riskRewardRatio, 'riskRewardRatio', { min: 0.1, max: 100 }),
+  ].filter(Boolean);
+  if (numericErrors.length > 0) {
+    return res.status(422).json({ error: numericErrors[0] });
   }
 
   const indicators = strategyEngine.calculateIndicators(candles);
@@ -96,12 +117,31 @@ router.post('/analyze', async (req, res) => {
 router.post('/backtest', async (req, res) => {
   const { candles, ...options } = req.body || {};
 
-  if (!candles || !Array.isArray(candles) || candles.length < 100) {
-    return res.status(422).json({ error: 'candles array with at least 100 entries required for backtesting' });
+  if (!candles || !Array.isArray(candles) || candles.length < 100 || candles.length > MAX_CANDLES) {
+    return res.status(422).json({ error: `candles array with 100 to ${MAX_CANDLES} entries required for backtesting` });
   }
 
-  const report = runBacktest(candles, options);
-  res.json({ success: true, ...report });
+  const numericErrors = [
+    options.accountBalance === undefined ? null : validateNumber(options.accountBalance, 'accountBalance', { min: 1, max: Number.MAX_SAFE_INTEGER }),
+    options.initialCapital === undefined ? null : validateNumber(options.initialCapital, 'initialCapital', { min: 1, max: Number.MAX_SAFE_INTEGER }),
+    options.riskPerTrade === undefined ? null : validateNumber(options.riskPerTrade, 'riskPerTrade', { min: 0.0001, max: 1 }),
+    options.stopLossPct === undefined ? null : validateNumber(options.stopLossPct, 'stopLossPct', { min: 0.0001, max: 1 }),
+    options.takeProfitPct === undefined ? null : validateNumber(options.takeProfitPct, 'takeProfitPct', { min: 0.0001, max: 10 }),
+    options.riskPercent === undefined ? null : validateNumber(options.riskPercent, 'riskPercent', { min: 0.01, max: 100 }),
+    options.riskRewardRatio === undefined ? null : validateNumber(options.riskRewardRatio, 'riskRewardRatio', { min: 0.1, max: 100 }),
+    options.minConfidence === undefined ? null : validateNumber(options.minConfidence, 'minConfidence', { min: 0, max: 100 }),
+  ].filter(Boolean);
+  if (numericErrors.length > 0) {
+    return res.status(422).json({ error: numericErrors[0] });
+  }
+
+  try {
+    const report = runBacktest(candles, options);
+    return res.json({ success: true, ...report });
+  } catch (error) {
+    logger.warn(`[strategy/backtest] Validation failed: ${error.message}`);
+    return res.status(422).json({ error: error.message });
+  }
 });
 
 /**
@@ -135,8 +175,18 @@ router.post('/evaluate', async (req, res) => {
     rrRatio,
   } = req.body || {};
 
-  if (!candles || !Array.isArray(candles) || candles.length < 60) {
-    return res.status(422).json({ error: 'candles array with at least 60 entries required' });
+  if (!candles || !Array.isArray(candles) || candles.length < 60 || candles.length > MAX_CANDLES) {
+    return res.status(422).json({ error: `candles array with 60 to ${MAX_CANDLES} entries required` });
+  }
+
+  const numericErrors = [
+    validateNumber(aiConfidence, 'aiConfidence', { min: 0, max: 1 }),
+    validateNumber(accountBalance, 'accountBalance', { min: 1, max: Number.MAX_SAFE_INTEGER }),
+    riskPerTradePct === undefined ? null : validateNumber(riskPerTradePct, 'riskPerTradePct', { min: 0.0001, max: 1 }),
+    rrRatio === undefined ? null : validateNumber(rrRatio, 'rrRatio', { min: 0.1, max: 100 }),
+  ].filter(Boolean);
+  if (numericErrors.length > 0) {
+    return res.status(422).json({ error: numericErrors[0] });
   }
 
   // Allow per-request overrides of risk/RR

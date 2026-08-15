@@ -2,7 +2,49 @@
  * Minimal backtest engine — runs a simple signal-based simulation on candle data.
  */
 
+function isValidNumber(value) {
+	return Number.isFinite(Number(value));
+}
+
+/**
+ * Validates candles and options to avoid runtime failures.
+ */
+function validateBacktestInputs(candles, options) {
+	if (!Array.isArray(candles) || candles.length === 0) {
+		throw new Error('candles must be a non-empty array');
+	}
+
+	if (candles.length < 21) {
+		throw new Error('candles array must contain at least 21 entries');
+	}
+
+	const invalidCandle = candles.find((candle) => !isValidNumber(candle?.close));
+	if (invalidCandle) {
+		throw new Error('each candle.close must be a finite number');
+	}
+
+	const riskPerTrade = Number(options?.riskPerTrade ?? 0.02);
+	const stopLossPct = Number(options?.stopLossPct ?? 0.02);
+	const takeProfitPct = Number(options?.takeProfitPct ?? 0.05);
+	const initialCapital = Number(options?.initialCapital ?? 10000);
+
+	if (!(initialCapital > 0)) {
+		throw new Error('initialCapital must be greater than 0');
+	}
+	if (!(riskPerTrade > 0)) {
+		throw new Error('riskPerTrade must be greater than 0');
+	}
+	if (!(stopLossPct > 0)) {
+		throw new Error('stopLossPct must be greater than 0');
+	}
+	if (!(takeProfitPct > 0)) {
+		throw new Error('takeProfitPct must be greater than 0');
+	}
+}
+
 export function runBacktest(candles, options = {}) {
+	validateBacktestInputs(candles, options);
+
 	const {
 		initialCapital = 10000,
 		riskPerTrade = 0.02,
@@ -18,10 +60,14 @@ export function runBacktest(candles, options = {}) {
 		const closes = slice.map((c) => Number(c.close));
 		const sma = closes.reduce((s, v) => s + v, 0) / closes.length;
 		const price = closes[closes.length - 1];
+		if (!(price > 0)) continue;
 		const signal = price > sma ? 'buy' : price < sma ? 'sell' : null;
 		if (!signal) continue;
 
-		const size = (capital * riskPerTrade) / (price * stopLossPct);
+		const denominator = price * stopLossPct;
+		if (!(denominator > 0)) continue;
+		const size = (capital * riskPerTrade) / denominator;
+		if (!Number.isFinite(size) || size <= 0) continue;
 		const entry = price;
 		const exitPrice = signal === 'buy'
 			? entry * (1 + takeProfitPct)

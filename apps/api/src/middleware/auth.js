@@ -1,6 +1,6 @@
 import logger from '../utils/logger.js';
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090';
+const POCKETBASE_URL = String(process.env.POCKETBASE_URL || 'http://localhost:8090').replace(/\/$/, '');
 
 export default async function authMiddleware(req, res, next) {
 	const header = req.headers.authorization;
